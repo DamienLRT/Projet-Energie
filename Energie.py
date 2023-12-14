@@ -302,10 +302,72 @@ if page == pages[4] :
       st.write(scoresacc(choice))
   elif display == 'Confusion Matrix':
       st.dataframe(scoresconf(choice))
-  if st.checkbox("Conclusion de la partie classification nationale"):
-      st.write("Les résultats des modèles de classification sont très corrects, mais ce ne sont pas les modèles les plus adaptés à notre problématique. Pour cette étude, il est plus judicieux de se concentrer sur l'approche de régression ci-dessous.")
+
+  st.write("Les résultats des modèles de classification sont corrects, mais ce ne sont pas les modèles les plus adaptés à notre problématique. Pour cette étude, il est plus judicieux de se concentrer sur l'approche de régression ci-dessous :")
 
   st.write("#### Des modèles de régression")
+  pb = pd.read_csv('DataFrame.csv', sep = ',')
+  pb_un = pb
+  y_pb = pb_un['Consommation (MW)']
+  X_pb = pb_un.drop('Consommation (MW)', axis = 1)
+  X_train_pb, X_test_pb, y_train_pb, y_test_pb = train_test_split(X_pb, y_pb, test_size=0.25, random_state = 42)
+  cols = X_pb.columns
+  sc_pb = StandardScaler()
+  X_train_pb.loc[:,cols] = sc_pb.fit_transform(X_train_pb[cols])
+  X_test_pb.loc[:,cols] = sc_pb.transform(X_test_pb[cols])
+
+  lr_pb = load('model_reg_line.py')
+  dtr_pb = load('model_reg_dtr.py')
+  forest_pb = load('model_reg_forest.py')
+
+  pred_l_pb = lr_pb.predict(X_test_pb)
+  pred_a_pb = dtr_pb.predict(X_test_pb)
+  pred_f_pb = forest_pb.predict(X_test_pb)
+
+  pred_l_train_pb = lr_pb.predict(X_train_pb)
+  pred_a_train_pb = dtr_pb.predict(X_train_pb)
+  pred_f_train_pb = forest_pb.predict(X_train_pb)
+
+  choix_modele = st.selectbox(label = 'Trois modèles de régression ont été entraînés :', options = ['Régression linéaire', 'Arbre de décision', 'Forêt aléatoire'])
+  def train_modele(choix_modele):
+      if choix_modele == 'Régression linéaire':
+          q = lr_pb
+      elif choix_modele == 'Arbre de décision':
+          q = dtr_pb
+      elif choix_modele == 'Forêt aléatoire':
+          q = forest_pb
+      s2 = q.score(X_test_pb, y_test_pb)
+      return s2
+  st.write('Coefficient de détermination', train_modele(choix_modele))
+
+  st.write('##### Le choix du modèle le plus performant')
+  st.write("Nous nous sommes concentrés sur le modèle le plus performant au vu de l'ensemble des métriques :")  
+  # st.image(Image.open('image_recap.png'))  
+
+  lineaire_pb = ['linéaire test', mean_absolute_error(y_test_pb, pred_l_pb), mean_squared_error(y_test_pb, pred_l_pb), np.sqrt(mean_squared_error(y_test_pb, pred_l_pb)), lr_pb.score(X_test_pb, y_test_pb)]
+  arbre_pb = ['arbre test', mean_absolute_error(y_test_pb, pred_a_pb), mean_squared_error(y_test_pb, pred_a_pb), np.sqrt(mean_squared_error(y_test_pb, pred_a_pb)), dtr_pb.score(X_test_pb,y_test_pb)]
+  foret_pb = ['forêt test', mean_absolute_error(y_test_pb, pred_f_pb), mean_squared_error(y_test_pb, pred_f_pb), np.sqrt(mean_squared_error(y_test_pb, pred_f_pb)), forest_pb.score(X_test_pb,y_test_pb)]
+  lineaire_t_pb = ['linéaire train', mean_absolute_error(y_train_pb, pred_l_train_pb), mean_squared_error(y_train_pb, pred_l_train_pb), np.sqrt(mean_squared_error(y_train_pb, pred_l_train_pb)), lr_pb.score(X_train_pb, y_train_pb)]
+  arbre_t_pb = ['arbre train', mean_absolute_error(y_train_pb, pred_a_train_pb), mean_squared_error(y_train_pb, pred_a_train_pb), np.sqrt(mean_squared_error(y_train_pb, pred_a_train_pb)), dtr_pb.score(X_train_pb, y_train_pb)]
+  foret_t_pb = ['forêt train', mean_absolute_error(y_train_pb, pred_f_train_pb), mean_squared_error(y_train_pb, pred_f_train_pb), np.sqrt(mean_squared_error(y_train_pb, pred_f_train_pb)), forest_pb.score(X_train_pb, y_train_pb)]
+  tableau = [lineaire_pb,lineaire_t_pb,arbre_pb,arbre_t_pb,foret_pb,foret_t_pb]
+  dataF_pb = pd.DataFrame(data=tableau, columns=['modèle','mae','mse','rmse','r²'])
+  st.dataframe(dataF_pb)
+
+  coef = 0.9573220875096127
+
+  st.write("Pour résoudre le problème de sur-apprentissage de l'arbre de décision. Nous avons testé de façon empirique différentes profondeurs d'arbre. Nous obtenions un R² de", coef ," avec un max_depth de 6, mais toujours inférieur à ceux obtenus avec la forêt aléatoire.")
+
+  st.write('##### Le choix de la forêt aléatoire')
+
+  st.write('C\'est le random forest regressor qui présente les meilleurs résultats :')
+  st.image(Image.open('Resid_Fal.png'))  
+
+  if st.checkbox("Voir les graphiques de la linear regression"):
+      st.image(Image.open('Resid_lr.png'))
+
+  if st.checkbox("Voir les graphiques du decision tree regressor"):
+      st.image(Image.open('Resid_dtr.png'))
 
 if page == pages[5] : 
   st.write("### Modélisation régionale")
@@ -371,7 +433,7 @@ if page == pages[5] :
   st.write("Nous avons testé ces trois modèles sur différents nombres de colonnes, d'abord de façon aléatoire, puis en utilisant les Shap et les feature importances, mais en conservant l'ensemble de nos données, nous obtenions de meilleurs résultats.")
   if st.checkbox("Voir le Shap sur notre modèle de forêt aléatoire") :
     st.image(Image.open('shap.png')) 
-  if st.checkbox("Voir la compilation des résultats par modèle") :
+  if st.checkbox("Voir la compilation des R² par modèle") :
     st.image(Image.open('detail.jpg')) 
   st.write("Nous nous sommes concentrés sur le modèle le plus performant au vu de l'ensemble des métriques :")
 
@@ -388,7 +450,7 @@ if page == pages[5] :
   st.write("Pour résoudre le problème de sur-apprentissage de l'arbre de décision, nous avons testé de façon empirique différentes profondeurs d'arbre. A 15, nous obtenions un résultat intéressant mais toujours inférieur à ceux obtenus avec la forêt aléatoire.")
 
   st.write("#### L'optimisation de la forêt aléatoire")
-  if st.checkbox("Voir les résultats de l'hyperparamétrage du random forest regressor") :
+  if st.checkbox("Voir les résultats de l'hyperparamétrage du random forest regressor avec la méthode Grid Search") :
     st.code('''
             'max_depth': 30,   # Profondeur maximale des arbres
             'max_features': 'log2',   # Nombre maximum de caractéristiques à considérer pour le fractionnement
@@ -487,8 +549,12 @@ if page == pages[7] :
   st.write("#### Atteinte des objectifs")
   st.write("Des modèles de prévision de la consommation énergétique ont été développé tant au niveau national que régional, avec une optimisation de certains de ces modèles. Les prévisions pour 2022 et 2023 ont été réalisées avec succès, démontrant ainsi la robustesse de la modélisation. L'objectif principal a été atteint.")
   st.write("#### Piste d'amélioration pour augmenter les performances")
-  st.write("Les modèles utilisés n'ont pas pu tous être optimisés par faute de temps. D'autres modèles auraient également pu être testés. L'intégration de données supplémentaires, telles que les jours de la semaine et des données de population, aurait également pu renforcer la qualité des prévisions. Enfin, des prévisions sur l'avenir aurait pu être réalisées pour parfaire la recherche.")
-  st.write("#### Des modèles régionaux dédiés")
-  st.write("Parmi les axes non explorés en raison des contraintes de temps, la création de modèles régionaux dédiés nous aurait permis d'affiner encore plus nos résultats. Les prédictions auraient été plus précises et adaptées aux caractéristiques propres à chaque territoire. Cette approche aurait pu également faciliter une meilleure compréhension des variations régionales de la consommation énergétique.")
+  st.markdown('''
+    - l’optimisation d'autres modèles
+    - l'ajout de données supplémentaires : jours de la semaine, données de population…
+    - la réalisation de prévisions sur l'avenir
+    - la création de modèles régionaux
+    - un travail plus approfondi du modèle sans machine Learning
+  ''')
   st.write("#### Conclusion")
   st.write("Le projet a contribué à démontrer comment l'utilisation de données climatiques peut améliorer la précision des prévisions de consommation énergétique. Il a également montré l'impact de différentes approches de modélisation sur la qualité des prédictions. De nombreux axes d'amélioration auraient pu être exploités avec un délai supplémentaire. Ces pistes non explorées ou partiellement exploitées constituent des axes de développement futurs prometteurs pour renforcer encore davantage la qualité de nos modèles et leurs applications potentielles dans le secteur énergétique.")
